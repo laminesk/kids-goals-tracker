@@ -3,5 +3,9 @@
   "devCommand": "npm run dev",
   "installCommand": "npm install",
   "framework": "nextjs",
-  "outputDirectory": ".next"
+  "functions": {
+    "src/app/**/*.tsx": {
+      "maxDuration": 30
+    }
+  }
 }
