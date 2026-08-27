@@ -189,8 +189,9 @@ export default function ChildDashboardPage() {
   const upcomingTasks = tasks.filter(t => getTaskUrgency(t.date) === 'soon')
   const overdueTasks = tasks.filter(t => getTaskUrgency(t.date) === 'overdue')
 
-  const availableRewards = rewards.filter(r => r.unlocked && r.cost_points <= pointsBalance)
-  const lockedRewards = rewards.filter(r => !r.unlocked || r.cost_points > pointsBalance)
+  const availableRewards = rewards.filter(r => !r.unlocked && r.cost_points <= pointsBalance)
+  const lockedRewards = rewards.filter(r => !r.unlocked && r.cost_points > pointsBalance)
+  const unlockedRewards = rewards.filter(r => r.unlocked)
 
   return (
     <div className="space-y-6">
@@ -329,7 +330,7 @@ export default function ChildDashboardPage() {
           {availableRewards.length > 0 && (
             <div className="mb-4">
               <h4 className="text-sm font-medium text-green-600 mb-2 flex items-center gap-1">
-                <CheckCircle className="w-4 h-4" /> Disponibles ({availableRewards.length})
+                <CheckCircle className="w-4 h-4" /> Disponibles à débloquer ({availableRewards.length})
               </h4>
               <div className="grid sm:grid-cols-2 gap-3">
                 {availableRewards.map((reward) => (
@@ -355,6 +356,28 @@ export default function ChildDashboardPage() {
             </div>
           )}
 
+          {unlockedRewards.length > 0 && (
+            <div className="mb-4">
+              <h4 className="text-sm font-medium text-blue-600 mb-2 flex items-center gap-1">
+                <CheckCircle className="w-4 h-4" /> Déjà débloquées ({unlockedRewards.length})
+              </h4>
+              <div className="grid sm:grid-cols-2 gap-3">
+                {unlockedRewards.map((reward) => (
+                  <div key={reward.id} className="p-3 bg-blue-50 border border-blue-200 rounded-lg">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium text-gray-900">{reward.name}</p>
+                        {reward.description && <p className="text-sm text-gray-600">{reward.description}</p>}
+                        <p className="text-sm text-blue-700 font-medium">{reward.cost_points} pts</p>
+                        <p className="text-xs text-blue-600">✓ Débloquée</p>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {lockedRewards.length > 0 && (
             <div>
               <h4 className="text-sm font-medium text-gray-600 mb-2 flex items-center gap-1">
@@ -363,7 +386,6 @@ export default function ChildDashboardPage() {
               <div className="grid sm:grid-cols-2 gap-3">
                 {lockedRewards.map((reward) => {
                   const missing = reward.cost_points - pointsBalance
-                  const isUnlocked = reward.unlocked
                   return (
                     <div key={reward.id} className="p-3 bg-gray-50 border border-gray-200 rounded-lg opacity-75">
                       <div className="flex items-center justify-between">
@@ -371,14 +393,12 @@ export default function ChildDashboardPage() {
                           <p className="font-medium text-gray-900">{reward.name}</p>
                           {reward.description && <p className="text-sm text-gray-600">{reward.description}</p>}
                           <p className="text-sm text-gray-500">{reward.cost_points} pts</p>
-                          {isUnlocked && (
-                            <p className="text-sm text-red-600 font-medium">
-                              {missing > 0 ? `Il manque ${missing} pts` : 'Disponible'}
-                            </p>
-                          )}
+                          <p className="text-sm text-red-600 font-medium">
+                            Il manque {missing} pts
+                          </p>
                         </div>
                         <Badge variant="outline" className="text-xs">
-                          {isUnlocked ? (missing > 0 ? `${missing} pts manquants` : 'Disponible') : 'Non débloquée'}
+                          {missing} pts manquants
                         </Badge>
                       </div>
                     </div>
