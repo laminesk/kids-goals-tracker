@@ -187,8 +187,13 @@ function LoginForm() {
             <div className="mt-6 pt-6 border-t border-gray-200">
               <p className="text-sm text-gray-600 text-center">
                 {role === 'parent'
-                  ? 'Première fois ? Créez votre famille depuis la page d\'accueil.'
+                  ? 'Première fois ? '
                   : 'Demandez à votre parent de vous créer un compte.'}
+                {role === 'parent' && (
+                  <a href="/register" className="text-primary-500 hover:underline font-medium">
+                    Créez votre famille
+                  </a>
+                )}
               </p>
             </div>
           </CardContent>
