@@ -137,16 +137,72 @@ export default function ParentTasksPage() {
           .update(taskData)
           .eq('id', editingTask.id)
         if (error) throw error
+        // Generate instances for updated task
+        await generateTaskInstances(supabase, editingTask.id, taskData)
         addToast({ type: 'success', title: 'Tâche modifiée' })
       } else {
-        const { error } = await supabase.from('tasks').insert(taskData)
+        const { data: newTask, error } = await supabase.from('tasks').insert(taskData).select().single()
         if (error) throw error
+        // Generate instances for new task
+        await generateTaskInstances(supabase, newTask.id, taskData)
         addToast({ type: 'success', title: 'Tâche créée' })
       }
       setModalOpen(false)
       resetForm()
     } catch (error) {
       addToast({ type: 'error', title: 'Erreur', message: 'Impossible de sauvegarder la tâche' })
+    }
+  }
+
+  // Generate task instances based on recurrence
+  const generateTaskInstances = async (supabase: any, taskId: string, taskData: any) => {
+    const { assigned_to, recurrence_type, recurrence_days, deadline } = taskData
+    if (!assigned_to || assigned_to.length === 0) return
+
+    const today = new Date()
+    today.setHours(0, 0, 0, 0)
+    const endDate = deadline ? new Date(deadline) : new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000) // 30 days default
+    endDate.setHours(0, 0, 0, 0)
+
+    const instances = []
+
+    for (const childId of assigned_to) {
+      let currentDate = new Date(today)
+      
+      while (currentDate <= endDate) {
+        let shouldCreate = false
+        
+        switch (recurrence_type) {
+          case 'daily':
+            shouldCreate = true
+            break
+          case 'weekly':
+            shouldCreate = currentDate.getDay() === today.getDay()
+            break
+          case 'custom':
+            shouldCreate = recurrence_days?.includes(currentDate.getDay()) || false
+            break
+          case 'none':
+          default:
+            shouldCreate = currentDate.getTime() === today.getTime()
+            break
+        }
+        
+        if (shouldCreate) {
+          instances.push({
+            task_id: taskId,
+            child_id: childId,
+            date: currentDate.toISOString().split('T')[0],
+            status: 'pending',
+          })
+        }
+        
+        currentDate.setDate(currentDate.getDate() + 1)
+      }
+    }
+
+    if (instances.length > 0) {
+      await supabase.from('task_instances').upsert(instances, { onConflict: 'task_id,child_id,date' })
     }
   }
 
