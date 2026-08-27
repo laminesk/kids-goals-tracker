@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
-import { Bell, LogOut, LayoutDashboard, ListTodo, Gift, History, Settings, Users, ChevronDown, ChevronUp } from 'lucide-react'
+import { Bell, LogOut, LayoutDashboard, ListTodo, Gift, History, Settings, Users, ChevronDown, ChevronUp, ClipboardCheck } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -206,6 +206,13 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
             >
               <History className="w-5 h-5" />
               <span>Historique non-fait</span>
+            </Link>
+            <Link
+              href="/parent/approvals"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+            >
+              <ClipboardCheck className="w-5 h-5" />
+              <span>Tâches à approuver</span>
             </Link>
             <Link
               href="/parent/settings"
