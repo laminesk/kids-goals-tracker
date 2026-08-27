@@ -11,6 +11,10 @@ import { useToast } from '@/components/ui/Toast'
 import { formatDate, cn } from '@/utils/helpers'
 import Link from 'next/link'
 import { TaskInstance, Task, Child } from '@/types/database'
+import { 
+  notifyChildTaskApproved, 
+  notifyChildTaskRejected 
+} from '@/lib/notifications'
 
 export default function ParentApprovalsPage() {
   const { session } = useAuth()
@@ -55,7 +59,8 @@ export default function ParentApprovalsPage() {
     fetchData()
   }, [session])
 
-  const handleApprove = async (instanceId: string, childId: string, points: number) => {
+  const handleApprove = async (instanceId: string, childId: string, points: number, taskName: string) => {
+    if (!session?.user?.family_id) return
     setApprovingId({ id: instanceId, action: 'approve' })
     const supabase = getSupabase()
 
@@ -69,6 +74,8 @@ export default function ParentApprovalsPage() {
 
     if (!error) {
       addToast({ type: 'success', title: 'Tâche approuvée', message: `+${points} pts crédités` })
+      // Notify child
+      await notifyChildTaskApproved(session.user.family_id, childId, taskName, points)
       setPendingApprovals(prev => prev.filter(i => i.id !== instanceId))
     } else {
       addToast({ type: 'error', title: 'Erreur', message: 'Impossible d\'approuver' })
@@ -76,7 +83,8 @@ export default function ParentApprovalsPage() {
     setApprovingId(null)
   }
 
-  const handleReject = async (instanceId: string) => {
+  const handleReject = async (instanceId: string, childId: string, taskName: string) => {
+    if (!session?.user?.family_id) return
     setApprovingId({ id: instanceId, action: 'reject' })
     const supabase = getSupabase()
 
@@ -91,6 +99,8 @@ export default function ParentApprovalsPage() {
 
     if (!error) {
       addToast({ type: 'success', title: 'Tâche rejetée', message: 'L\'enfant peut la re-valider' })
+      // Notify child
+      await notifyChildTaskRejected(session.user.family_id, childId, taskName)
       setPendingApprovals(prev => prev.filter(i => i.id !== instanceId))
     } else {
       addToast({ type: 'error', title: 'Erreur', message: 'Impossible de rejeter' })
@@ -175,7 +185,7 @@ export default function ParentApprovalsPage() {
                           <Button
                             size="sm"
                             variant="primary"
-                            onClick={() => handleApprove(instance.id, instance.child_id, (instance.tasks as Task)?.points || 0)}
+                            onClick={() => handleApprove(instance.id, instance.child_id, (instance.tasks as Task)?.points || 0, (instance.tasks as Task)?.name || '')}
                             loading={approvingId?.id === instance.id && approvingId?.action === 'approve'}
                           >
                             <CheckCircle className="w-4 h-4 mr-1" />
@@ -184,7 +194,7 @@ export default function ParentApprovalsPage() {
                           <Button
                             size="sm"
                             variant="danger"
-                            onClick={() => handleReject(instance.id)}
+                            onClick={() => handleReject(instance.id, instance.child_id, (instance.tasks as Task)?.name || '')}
                             loading={approvingId?.id === instance.id && approvingId?.action === 'reject'}
                           >
                             <XCircle className="w-4 h-4 mr-1" />

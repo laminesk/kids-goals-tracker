@@ -11,6 +11,12 @@ import { getSupabase } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
 import { formatDate, cn, getRecurrenceLabel } from '@/utils/helpers'
 import { TaskInstance, Task, Reward, RewardUnlock } from '@/types/database'
+import { 
+  notifyParentTaskValidated, 
+  notifyChildTaskApproved, 
+  notifyChildTaskRejected, 
+  notifyParentRewardUnlocked 
+} from '@/lib/notifications'
 
 export default function ChildDashboardPage() {
   const { session } = useAuth()
@@ -128,6 +134,13 @@ export default function ChildDashboardPage() {
 
     if (!error) {
       addToast({ type: 'success', title: 'Tâche validée', message: 'En attente d\'approbation par un parent' })
+      // Notify parent
+      await notifyParentTaskValidated(
+        session.user.family_id,
+        session.user.name,
+        showValidateConfirm.taskName,
+        (tasks.find(t => t.id === showValidateConfirm.taskId)?.tasks as Task)?.points || 0
+      )
       setTasks(prev => prev.filter(t => t.id !== showValidateConfirm.taskId))
       setPendingTasks(prev => [...prev, { ...tasks.find(t => t.id === showValidateConfirm.taskId)! }])
     } else {
@@ -148,6 +161,12 @@ export default function ChildDashboardPage() {
 
     if (!error) {
       addToast({ type: 'success', title: 'Récompense débloquée !', message: `Félicitations ! Tu as débloqué "${showUnlockConfirm.rewardName}"` })
+      // Notify parent
+      await notifyParentRewardUnlocked(
+        session.user.family_id,
+        session.user.name,
+        showUnlockConfirm.rewardName
+      )
       setRewards(prev => prev.map(r => r.id === showUnlockConfirm.rewardId ? { ...r, unlocked: true } : r))
       setPointsBalance(prev => prev - showUnlockConfirm.cost)
     } else {
