@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { User, Lock, Shield, Trash2, Download, AlertTriangle, Save, Eye, EyeOff, X } from 'lucide-react'
+import { User, Lock, Shield, Trash2, Download, AlertTriangle, Save, Eye, EyeOff, X, Plus, UserPlus } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -37,6 +37,14 @@ export default function ParentSettingsPage() {
   const [stats, setStats] = useState({ tasksCount: 0, rewardsCount: 0 })
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [showExportConfirm, setShowExportConfirm] = useState(false)
+  const [showAddChildModal, setShowAddChildModal] = useState(false)
+  const [addChildForm, setAddChildForm] = useState({
+    name: '',
+    pin: '',
+    confirmPin: '',
+  })
+  const [addChildErrors, setAddChildErrors] = useState<Record<string, string>>({})
+  const [showAddChildPassword, setShowAddChildPassword] = useState(false)
 
   useEffect(() => {
     async function fetchData() {
@@ -144,17 +152,55 @@ export default function ParentSettingsPage() {
     setSaving(false)
   }
 
+  const validateAddChildForm = () => {
+    const errors: Record<string, string> = {}
+    if (!addChildForm.name.trim()) errors.name = 'Prénom requis'
+    if (!addChildForm.pin) errors.pin = 'PIN requis'
+    else if (!/^\d{4,6}$/.test(addChildForm.pin)) errors.pin = '4 à 6 chiffres'
+    if (addChildForm.pin !== addChildForm.confirmPin) errors.confirmPin = 'Les PIN ne correspondent pas'
+    setAddChildErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const handleAddChild = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!validateAddChildForm() || !session?.user) return
+
+    setSaving(true)
+    const supabase = getSupabase()
+
+    const pinHash = await hashPassword(addChildForm.pin)
+
+    const { error } = await supabase
+      .from('children')
+      .insert({
+        family_id: session.user.family_id,
+        name: addChildForm.name.trim(),
+        pin_hash: pinHash,
+      })
+
+    if (!error) {
+      addToast({ type: 'success', title: `Enfant ${addChildForm.name} ajouté` })
+      setAddChildForm({ name: '', pin: '', confirmPin: '' })
+      setShowAddChildModal(false)
+      // Refresh children list
+      const { data } = await supabase.from('children').select('*').eq('family_id', session.user.family_id).order('created_at')
+      if (data) setChildren(data)
+    } else {
+      addToast({ type: 'error', title: 'Erreur', message: error.message })
+    }
+    setSaving(false)
+  }
+
   const handleResetPoints = async () => {
     if (!session?.user) return
     const supabase = getSupabase()
 
     const { error } = await supabase
       .from('children')
-      .update({ points_balance: 0 }) // We'll need to add this column or compute from task_instances
+      .update({ points_balance: 0 })
       .eq('family_id', session.user.family_id)
 
-    // Actually, points are computed from approved task_instances, so we'd need to delete those or add a points column
-    // For now, let's just show a toast
     addToast({ type: 'success', title: 'Points réinitialisés (simulation)' })
     setShowResetConfirm(false)
   }
@@ -276,6 +322,14 @@ export default function ParentSettingsPage() {
               </CardTitle>
             </CardHeader>
             <CardContent>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-sm text-gray-500">{children.length}/4 enfants</span>
+                <Button onClick={() => setShowAddChildModal(true)} variant="outline" size="sm">
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Ajouter un enfant
+                </Button>
+              </div>
+
               {children.length === 0 ? (
                 <p className="text-gray-500 text-center py-4">Aucun enfant ajouté</p>
               ) : (
@@ -455,6 +509,71 @@ export default function ParentSettingsPage() {
         confirmText="Télécharger CSV"
         variant="primary"
       />
+
+      <Modal
+        isOpen={showAddChildModal}
+        onClose={() => { setShowAddChildModal(false); setAddChildForm({ name: '', pin: '', confirmPin: '' }); setAddChildErrors({}); }}
+        title="Ajouter un enfant"
+        size="md"
+      >
+        <form onSubmit={handleAddChild} className="space-y-4">
+          <Input
+            label="Prénom *"
+            value={addChildForm.name}
+            onChange={(e) => setAddChildForm({ ...addChildForm, name: e.target.value })}
+            error={addChildErrors.name}
+            placeholder="Ex: Lucas"
+            autoComplete="given-name"
+            disabled={saving}
+          />
+
+          <div className="relative">
+            <Input
+              label="PIN (4-6 chiffres) *"
+              type={showAddChildPassword ? 'text' : 'password'}
+              value={addChildForm.pin}
+              onChange={(e) => setAddChildForm({ ...addChildForm, pin: e.target.value })}
+              error={addChildErrors.pin}
+              placeholder="1234"
+              autoComplete="off"
+              inputMode="numeric"
+              maxLength={6}
+              disabled={saving}
+            />
+            <button
+              type="button"
+              onClick={() => setShowAddChildPassword(!showAddChildPassword)}
+              className="absolute right-3 top-[38px] text-gray-400 hover:text-gray-600"
+              aria-label={showAddChildPassword ? 'Masquer le PIN' : 'Afficher le PIN'}
+            >
+              {showAddChildPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
+          </div>
+
+          <Input
+            label="Confirmer le PIN *"
+            type={showAddChildPassword ? 'text' : 'password'}
+            value={addChildForm.confirmPin}
+            onChange={(e) => setAddChildForm({ ...addChildForm, confirmPin: e.target.value })}
+            error={addChildErrors.confirmPin}
+            placeholder="1234"
+            autoComplete="off"
+            inputMode="numeric"
+            maxLength={6}
+            disabled={saving}
+          />
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <Button type="button" variant="outline" onClick={() => setShowAddChildModal(false)}>
+              Annuler
+            </Button>
+            <Button type="submit" loading={saving}>
+              <UserPlus className="w-4 h-4 mr-2" />
+              Ajouter
+            </Button>
+          </div>
+        </form>
+      </Modal>
     </div>
   )
 }
