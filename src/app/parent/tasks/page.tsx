@@ -159,6 +159,9 @@ export default function ParentTasksPage() {
     const { assigned_to, recurrence_type, recurrence_days, deadline } = taskData
     if (!assigned_to || assigned_to.length === 0) return
 
+    // Delete existing instances for this task first
+    await supabase.from('task_instances').delete().eq('task_id', taskId)
+
     const today = new Date()
     today.setHours(0, 0, 0, 0)
     const endDate = deadline ? new Date(deadline) : new Date(today.getTime() + 30 * 24 * 60 * 60 * 1000) // 30 days default
@@ -202,7 +205,7 @@ export default function ParentTasksPage() {
     }
 
     if (instances.length > 0) {
-      await supabase.from('task_instances').upsert(instances, { onConflict: 'task_id,child_id,date' })
+      await supabase.from('task_instances').insert(instances)
     }
   }
 
