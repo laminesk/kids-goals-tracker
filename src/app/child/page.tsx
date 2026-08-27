@@ -208,6 +208,11 @@ export default function ChildDashboardPage() {
   const upcomingTasks = tasks.filter(t => getTaskUrgency(t.date) === 'soon')
   const overdueTasks = tasks.filter(t => getTaskUrgency(t.date) === 'overdue')
 
+  // Sort overdue: most overdue first (oldest date)
+  overdueTasks.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+  // Sort upcoming: earliest first
+  upcomingTasks.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
   const availableRewards = rewards.filter(r => !r.unlocked && r.cost_points <= pointsBalance)
   const lockedRewards = rewards.filter(r => !r.unlocked && r.cost_points > pointsBalance)
   const unlockedRewards = rewards.filter(r => r.unlocked)
