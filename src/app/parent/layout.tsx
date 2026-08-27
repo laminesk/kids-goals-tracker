@@ -26,6 +26,10 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
     if (!authLoading && !session) {
       router.push('/login')
     }
+    // Redirect child trying to access parent routes
+    if (session && session.user.role === 'child') {
+      router.push('/child')
+    }
   }, [session, authLoading, router])
 
   if (authLoading || !session) {
@@ -36,9 +40,14 @@ export default function ParentLayout({ children }: { children: React.ReactNode }
     )
   }
 
+  // Block child from accessing parent routes
+  if (session.user.role === 'child') {
+    return null // The redirect will happen via useEffect
+  }
+
   const handleLogout = async () => {
     await logout()
-    router.push('/login')
+    router.push('/')
     router.refresh()
   }
 
