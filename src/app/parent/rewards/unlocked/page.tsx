@@ -1,7 +1,7 @@
 'use client'
 
-import { useEffect, useState } from 'react'
-import { X, Gift, Clock, Check } from 'lucide-react'
+import { useEffect, useState, useCallback } from 'react'
+import { X, Gift, Clock } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -20,43 +20,93 @@ export default function ParentUnlockedRewardsPage() {
   const [settlingId, setSettlingId] = useState<string | null>(null)
   const [resetForReuse, setResetForReuse] = useState(false)
 
-  useEffect(() => {
-    async function fetchData() {
-      if (!session?.user) return
-      const supabase = getSupabase()
+  const fetchData = useCallback(async () => {
+    if (!session?.user) return
+    const supabase = getSupabase()
 
-      const { data } = await supabase
-        .from('reward_unlocks')
-        .select(`
-          *,
-          rewards (id, name, cost_points, description),
-          children (id, name)
-        `)
-        .in('child_id', 
-          (await supabase.from('children').select('id').eq('family_id', session.user.family_id)).data?.map(c => c.id) || []
-        )
-        .order('unlocked_at', { ascending: false })
+    const { data } = await supabase
+      .from('reward_unlocks')
+      .select(`
+        *,
+        rewards (id, name, cost_points, description),
+        children (id, name)
+      `)
+      .in('child_id', 
+        (await supabase.from('children').select('id').eq('family_id', session.user.family_id)).data?.map(c => c.id) || []
+      )
+      .order('unlocked_at', { ascending: false })
 
-      if (data) {
-        const formatted = data.map(u => ({
-          ...u,
-          reward: u.rewards,
-          child: u.children
-        }))
-        setUnlocks(formatted)
-      }
-      setLoading(false)
+    if (data) {
+      const formatted = data.map(u => ({
+        ...u,
+        reward: u.rewards,
+        child: u.children
+      }))
+      setUnlocks(formatted)
     }
-    fetchData()
+    setLoading(false)
   }, [session, filterStatus])
 
-  const filteredUnlocks = unlocks.filter(u => {
-      if (filterStatus === 'pending') return !u.settled_at
-      if (filterStatus === 'settled') return !!u.settled_at
-      return true
-    })
+  useEffect(() => {
+    fetchData()
+    const interval = setInterval(fetchData, 10000)
+    return () => clearInterval(interval)
+  }, [fetchData])
 
+  const filteredUnlocks = unlocks.filter(u => {
+    if (filterStatus === 'pending') return !u.settled_at
+    if (filterStatus === 'settled') return !!u.settled_at
+    return true
+  })
+
+  const handleSettle = (unlockId: string) => {
+    setSettlingId(unlockId)
+  }
+
+  const confirmSettle = async () => {
+    if (!settlingId || !session?.user?.family_id) return
+    
+    const supabase = getSupabase()
+    const { error } = await supabase
+      .from('reward_unlocks')
+      .update({
+        settled_at: new Date().toISOString(),
+        settled_by: session.user.id,
+        reset_for_reuse: resetForReuse
+      })
+      .eq('id', settlingId)
+
+    if (!error) {
+      addToast({ 
+        type: 'success', 
+        title: 'Récompense soldée', 
+        message: resetForReuse ? 'Récompense remise à disposition de l\'enfant' : 'Récompense soldée définitivement' 
+      })
+      setUnlocks(prev => prev.map(u => 
+        u.id === settlingId ? { 
+          ...u, 
+          settled_at: new Date().toISOString(), 
+          settled_by: session.user.id,
+          reset_for_reuse: resetForReuse
+        } : u
+      ))
+      setResetForReuse(false)
+    } else {
+      addToast({ type: 'error', title: 'Erreur', message: 'Impossible de solder la récompense' })
+    }
+    setSettlingId(null)
+  }
+
+  if (loading) {
     return (
+      <div className="space-y-6">
+        <div className="animate-pulse"><div className="h-6 w-48 bg-gray-200 rounded" /></div>
+        <Card className="animate-pulse"><CardContent className="h-64" /></Card>
+      </div>
+    )
+  }
+
+  return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
@@ -198,40 +248,7 @@ export default function ParentUnlockedRewardsPage() {
               <Button variant="outline" onClick={() => { setSettlingId(null); setResetForReuse(false); }}>
                 Annuler
               </Button>
-              <Button 
-                onClick={() => {
-                  if (!session?.user?.family_id) return
-                  const supabase = getSupabase()
-                  supabase
-                    .from('reward_unlocks')
-                    .update({
-                      settled_at: new Date().toISOString(),
-                      settled_by: session.user.id,
-                      reset_for_reuse: resetForReuse
-                    })
-                    .eq('id', settlingId!)
-                    .then(({ error }) => {
-                      if (!error) {
-                        addToast({ 
-                          type: 'success', 
-                          title: 'Récompense soldée', 
-                          message: resetForReuse ? 'Récompense remise à disposition de l\'enfant' : 'Récompense soldée définitivement' 
-                        })
-                        setUnlocks(prev => prev.map(u => 
-                          u.id === settlingId ? { 
-                            ...u, 
-                            settled_at: new Date().toISOString(), 
-                            settled_by: session.user.id,
-                            reset_for_reuse: resetForReuse
-                          } : u
-                        ))
-                      } else {
-                        addToast({ type: 'error', title: 'Erreur', message: 'Impossible de solder la récompense' })
-                      }
-                      setSettlingId(null)
-                    })
-                }} 
-              >
+              <Button onClick={confirmSettle}>
                 Confirmer
               </Button>
             </div>
