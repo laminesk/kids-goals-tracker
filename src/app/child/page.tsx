@@ -61,7 +61,7 @@ export default function ChildDashboardPage() {
           .order('cost_points', { ascending: true }),
         supabase
           .from('reward_unlocks')
-          .select('reward_id')
+          .select('reward_id, settled_at, reset_for_reuse')
           .eq('child_id', session.user.id),
         supabase
           .from('task_instances')
@@ -76,7 +76,25 @@ export default function ChildDashboardPage() {
           .order('validated_by_child_at', { ascending: false }),
       ])
 
-      const unlockedRewardIds = new Set(unlocksRes.data?.map(u => u.reward_id) || [])
+      // Determine which rewards are actually unlocked (not available for re-unlock)
+      // A reward is "unlocked" (not available) if:
+      // - Has an entry not settled (pending parent approval)
+      // - OR settled but reset_for_reuse = false (definitively settled)
+      // A reward IS available to unlock if:
+      // - No entry at all, OR
+      // - All entries are settled AND reset_for_reuse = true (parent reset it for reuse)
+      const unlockedRewardIds = new Set<string>()
+      if (unlocksRes.data) {
+        for (const unlock of unlocksRes.data) {
+          // If not settled -> still pending, counts as unlocked
+          // If settled but reset_for_reuse = false -> permanently unlocked
+          // Only if settled AND reset_for_reuse = true -> available again
+          const isPermanentlyUnlocked = !unlock.settled_at || (unlock.settled_at && !unlock.reset_for_reuse)
+          if (isPermanentlyUnlocked) {
+            unlockedRewardIds.add(unlock.reward_id)
+          }
+        }
+      }
 
       if (tasksRes.data) {
         const todayTasks = tasksRes.data.filter(t => new Date(t.date).toDateString() === today.toDateString())
@@ -155,9 +173,36 @@ export default function ChildDashboardPage() {
     setUnlockingRewardId(showUnlockConfirm.rewardId)
 
     const supabase = getSupabase()
-    const { error } = await supabase
+
+    // Check if there's an existing entry that was reset for reuse
+    const { data: existingUnlock } = await supabase
       .from('reward_unlocks')
-      .insert({ reward_id: showUnlockConfirm.rewardId, child_id: session.user.id })
+      .select('id, settled_at, reset_for_reuse')
+      .eq('reward_id', showUnlockConfirm.rewardId)
+      .eq('child_id', session.user.id)
+      .single()
+
+    let error = null
+
+    if (existingUnlock && existingUnlock.settled_at && existingUnlock.reset_for_reuse) {
+      // Update existing entry for reuse - reset to pending state
+      const { error: updateError } = await supabase
+        .from('reward_unlocks')
+        .update({
+          settled_at: null,
+          settled_by: null,
+          reset_for_reuse: false,
+          unlocked_at: new Date().toISOString(),
+        })
+        .eq('id', existingUnlock.id)
+      error = updateError
+    } else {
+      // Normal insert for new unlock
+      const { error: insertError } = await supabase
+        .from('reward_unlocks')
+        .insert({ reward_id: showUnlockConfirm.rewardId, child_id: session.user.id })
+      error = insertError
+    }
 
     if (!error) {
       addToast({ type: 'success', title: 'Récompense débloquée !', message: `Félicitations ! Tu as débloqué "${showUnlockConfirm.rewardName}"` })
