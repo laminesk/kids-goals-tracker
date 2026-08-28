@@ -71,6 +71,9 @@ export interface RewardUnlock {
   child_id: string
   unlocked_at: string
   created_at: string
+  settled_at: string | null
+  settled_by: string | null
+  reset_for_reuse: boolean
 }
 
 export interface Notification {
