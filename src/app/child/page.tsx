@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Target, Gift, Clock, CheckCircle, XCircle, AlertCircle, Trophy, Star } from 'lucide-react'
+import { Target, Gift, Clock, CheckCircle, XCircle, AlertCircle, Trophy, Star, MessageSquare } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -10,7 +10,8 @@ import { useAuth } from '@/hooks/useAuth'
 import { getSupabase } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
 import { formatDate, cn, getRecurrenceLabel } from '@/utils/helpers'
-import { TaskInstance, Task, Reward, RewardUnlock } from '@/types/database'
+import Link from 'next/link'
+import { TaskInstance, Task, Reward, RewardUnlock, PointsAdjustment, AdjustmentType } from '@/types/database'
 import { 
   notifyParentTaskValidated, 
   notifyChildTaskApproved, 
@@ -123,17 +124,28 @@ export default function ChildDashboardPage() {
 
       const earnedPoints = approvedTasks?.reduce((sum, t: any) => sum + (t.tasks?.points || 0), 0) || 0
 
-      // Subtract spent points from unlocked rewards
+      // Subtract spent points from SETTLED rewards only (not pending)
       const { data: spentRewards } = await supabase
         .from('reward_unlocks')
         .select(`
           rewards!inner (cost_points)
         `)
         .eq('child_id', session.user.id)
+        .not('settled_at', 'is', null)
 
       const spentPoints = spentRewards?.reduce((sum, r: any) => sum + (r.rewards?.cost_points || 0), 0) || 0
 
-      setPointsBalance(earnedPoints - spentPoints)
+      // Add points adjustments (bonus/malus)
+      const { data: adjustments } = await supabase
+        .from('points_adjustments')
+        .select('type, points')
+        .eq('child_id', session.user.id)
+
+      const adjustmentPoints = adjustments?.reduce((sum: number, a: any) => {
+        return sum + (a.type === 'bonus' ? a.points : -a.points)
+      }, 0) || 0
+
+      setPointsBalance(earnedPoints - spentPoints + adjustmentPoints)
       setLoading(false)
     }
 
@@ -282,6 +294,15 @@ export default function ChildDashboardPage() {
           </div>
         </CardContent>
       </Card>
+
+      <div className="flex justify-end">
+        <Link href="/child/balance-history">
+          <Button variant="outline" size="sm" className="text-white border-white/50 hover:bg-white/10">
+            <MessageSquare className="w-4 h-4 mr-2" />
+            Voir l'historique
+          </Button>
+        </Link>
+      </div>
 
       {(todayTasks.length > 0 || upcomingTasks.length > 0) && (
         <Card>

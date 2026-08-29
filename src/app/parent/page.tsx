@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Users, Target, Gift, Clock, TrendingUp, CheckCircle, XCircle, ClipboardCheck, Clock as ClockIcon, ArrowUp, ArrowDown } from 'lucide-react'
+import { Users, Target, Gift, Clock, TrendingUp, CheckCircle, XCircle, ClipboardCheck, Clock as ClockIcon, ArrowUp, ArrowDown, MessageSquare, Plus, Minus } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -130,19 +130,25 @@ export default function ParentDashboardPage() {
           <p className="text-gray-600">Vue d'ensemble de votre famille</p>
         </div>
         <div className="flex gap-3">
-          <Link href="/parent/tasks">
-            <Button>
-              <Target className="w-4 h-4 mr-2" />
-              Nouvelle tâche
-            </Button>
-          </Link>
-          <Link href="/parent/rewards">
-            <Button variant="outline">
-              <Gift className="w-4 h-4 mr-2" />
-              Nouvelle récompense
-            </Button>
-          </Link>
-        </div>
+                <Link href="/parent/tasks">
+                  <Button>
+                    <Target className="w-4 h-4 mr-2" />
+                    Nouvelle tâche
+                  </Button>
+                </Link>
+                <Link href="/parent/rewards">
+                  <Button variant="outline">
+                    <Gift className="w-4 h-4 mr-2" />
+                    Nouvelle récompense
+                  </Button>
+                </Link>
+                <Link href="/parent/adjustments">
+                  <Button variant="outline">
+                    <MessageSquare className="w-4 h-4 mr-2" />
+                    Bonus / Malus
+                  </Button>
+                </Link>
+              </div>
       </div>
 
       <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-4">

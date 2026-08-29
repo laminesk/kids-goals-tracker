@@ -95,3 +95,15 @@ export interface AuthSession {
     name: string
   }
 }
+
+export type AdjustmentType = 'bonus' | 'malus'
+
+export interface PointsAdjustment {
+  id: string
+  child_id: string
+  parent_id: string
+  type: AdjustmentType
+  points: number
+  comment: string | null
+  created_at: string
+}
