@@ -11,42 +11,8 @@ CREATE TABLE IF NOT EXISTS public.points_adjustments (
     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
--- Enable RLS
-ALTER TABLE public.points_adjustments ENABLE ROW LEVEL SECURITY;
-
--- Policies
--- Parents can view adjustments for children in their family
-CREATE POLICY "Parents can view family adjustments" ON public.points_adjustments
-    FOR SELECT USING (
-        EXISTS (
-            SELECT 1 FROM public.children c
-            JOIN public.parents p ON p.family_id = c.family_id
-            WHERE c.id = points_adjustments.child_id
-            AND p.id = auth.uid()
-        )
-    );
-
--- Parents can insert adjustments for children in their family
-CREATE POLICY "Parents can create adjustments" ON public.points_adjustments
-    FOR INSERT WITH CHECK (
-        EXISTS (
-            SELECT 1 FROM public.children c
-            JOIN public.parents p ON p.family_id = c.family_id
-            WHERE c.id = points_adjustments.child_id
-            AND p.id = auth.uid()
-        )
-        AND points_adjustments.parent_id = auth.uid()
-    );
-
--- Children can view their own adjustments
-CREATE POLICY "Children can view own adjustments" ON public.points_adjustments
-    FOR SELECT USING (
-        EXISTS (
-            SELECT 1 FROM public.children c
-            WHERE c.id = points_adjustments.child_id
-            AND c.id = auth.uid()
-        )
-    );
+-- RLS désactivé car l'app utilise une auth custom (localStorage)
+-- L'autorisation est gérée côté application via session.user.family_id
 
 -- Indexes
 CREATE INDEX IF NOT EXISTS idx_points_adjustments_child_id ON public.points_adjustments(child_id);
