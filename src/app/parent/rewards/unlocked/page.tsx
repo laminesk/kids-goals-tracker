@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState, useCallback } from 'react'
-import { X, Gift, Clock } from 'lucide-react'
+import { X, Gift, Clock, AlertCircle } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -19,6 +19,7 @@ export default function ParentUnlockedRewardsPage() {
   const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'settled'>('pending')
   const [settlingId, setSettlingId] = useState<string | null>(null)
   const [resetForReuse, setResetForReuse] = useState(false)
+  const [settlingError, setSettlingError] = useState<string | null>(null)
 
   const fetchData = useCallback(async () => {
     if (!session?.user) return
@@ -45,7 +46,7 @@ export default function ParentUnlockedRewardsPage() {
       setUnlocks(formatted)
     }
     setLoading(false)
-  }, [session, filterStatus])
+  }, [session])
 
   useEffect(() => {
     fetchData()
@@ -61,27 +62,53 @@ export default function ParentUnlockedRewardsPage() {
 
   const handleSettle = (unlockId: string) => {
     setSettlingId(unlockId)
+    setResetForReuse(false)
+    setSettlingError(null)
   }
 
   const confirmSettle = async () => {
     if (!settlingId || !session?.user?.family_id) return
     
-    const supabase = getSupabase()
-    const { error } = await supabase
-      .from('reward_unlocks')
-      .update({
-        settled_at: new Date().toISOString(),
-        settled_by: session.user.id,
-        reset_for_reuse: resetForReuse
-      })
-      .eq('id', settlingId)
+    setSettlingError(null)
+    
+    try {
+      const supabase = getSupabase()
+      const { error } = await supabase
+        .from('reward_unlocks')
+        .update({
+          settled_at: new Date().toISOString(),
+          settled_by: session.user.id,
+          reset_for_reuse: resetForReuse
+        })
+        .eq('id', settlingId)
 
-    if (!error) {
+      if (error) {
+        console.error('Erreur update reward_unlocks:', error)
+        setSettlingError(error.message || 'Erreur lors du solder')
+        addToast({ type: 'error', title: 'Erreur', message: error.message || 'Impossible de solder la récompense' })
+        return
+      }
+
+      // Verify the update by fetching the record
+      const { data: verifyData, error: verifyError } = await supabase
+        .from('reward_unlocks')
+        .select('settled_at, settled_by, reset_for_reuse')
+        .eq('id', settlingId)
+        .single()
+
+      if (verifyError || !verifyData?.settled_at) {
+        console.error('Vérification échouée:', verifyError, verifyData)
+        setSettlingError('La mise à jour n\'a pas été persistée')
+        addToast({ type: 'error', title: 'Erreur', message: 'La récompense n\'a pas été soldée (vérification échouée)' })
+        return
+      }
+
       addToast({ 
         type: 'success', 
         title: 'Récompense soldée', 
         message: resetForReuse ? 'Récompense remise à disposition de l\'enfant' : 'Récompense soldée définitivement' 
       })
+      
       setUnlocks(prev => prev.map(u => 
         u.id === settlingId ? { 
           ...u, 
@@ -91,10 +118,14 @@ export default function ParentUnlockedRewardsPage() {
         } : u
       ))
       setResetForReuse(false)
-    } else {
-      addToast({ type: 'error', title: 'Erreur', message: 'Impossible de solder la récompense' })
+      setSettlingId(null)
+      
+    } catch (err) {
+      console.error('Exception confirmSettle:', err)
+      const msg = err instanceof Error ? err.message : 'Erreur inconnue'
+      setSettlingError(msg)
+      addToast({ type: 'error', title: 'Erreur', message: msg })
     }
-    setSettlingId(null)
   }
 
   if (loading) {
@@ -220,16 +251,23 @@ export default function ParentUnlockedRewardsPage() {
 
       {settlingId && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/50" onClick={() => { setSettlingId(null); setResetForReuse(false); }} />
+          <div className="fixed inset-0 bg-black/50" onClick={() => { setSettlingId(null); setResetForReuse(false); setSettlingError(null); }} />
           <div className="bg-white rounded-xl shadow-xl max-w-md w-full p-6 relative">
             <button
-              onClick={() => { setSettlingId(null); setResetForReuse(false); }}
+              onClick={() => { setSettlingId(null); setResetForReuse(false); setSettlingError(null); }}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
             >
               <X className="w-5 h-5" />
             </button>
             <h2 className="text-xl font-semibold text-gray-900 mb-4">Solder la récompense</h2>
             <p className="text-gray-600 mb-4">Confirmez le solder de cette récompense. L'enfant a débloqué cette récompense et attend votre validation.</p>
+            
+            {settlingError && (
+              <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg flex items-center gap-2 text-red-700">
+                <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                <span className="text-sm">{settlingError}</span>
+              </div>
+            )}
             
             <label className="flex items-center gap-3 p-3 border border-gray-200 rounded-lg cursor-pointer mb-4">
               <input
@@ -245,10 +283,10 @@ export default function ParentUnlockedRewardsPage() {
             </label>
             
             <div className="flex justify-end gap-3">
-              <Button variant="outline" onClick={() => { setSettlingId(null); setResetForReuse(false); }}>
+              <Button variant="outline" onClick={() => { setSettlingId(null); setResetForReuse(false); setSettlingError(null); }}>
                 Annuler
               </Button>
-              <Button onClick={confirmSettle}>
+              <Button onClick={confirmSettle} loading={!!settlingError}>
                 Confirmer
               </Button>
             </div>
