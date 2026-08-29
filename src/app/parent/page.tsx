@@ -9,7 +9,7 @@ import { useAuth } from '@/hooks/useAuth'
 import { getSupabase } from '@/lib/supabase/client'
 import { formatDate, cn } from '@/utils/helpers'
 import Link from 'next/link'
-import { TaskInstance, Child, Task } from '@/types/database'
+import { TaskInstance, Child, Task, PointsAdjustment } from '@/types/database'
 
 export default function ParentDashboardPage() {
   const { session } = useAuth()
@@ -34,6 +34,60 @@ export default function ParentDashboardPage() {
       if (childrenData) {
         setChildren(childrenData)
 
+        const childIds = childrenData.map(c => c.id)
+
+        // Fetch all data needed for balance calculation
+        const [approvedTasks, settledRewards, adjustments] = await Promise.all([
+          supabase
+            .from('task_instances')
+            .select(`
+              child_id,
+              tasks!inner (points)
+            `)
+            .in('child_id', childIds)
+            .eq('status', 'approved'),
+          supabase
+            .from('reward_unlocks')
+            .select(`
+              child_id,
+              rewards!inner (cost_points)
+            `)
+            .in('child_id', childIds)
+            .not('settled_at', 'is', null),
+          supabase
+            .from('points_adjustments')
+            .select('child_id, type, points')
+            .in('child_id', childIds),
+        ])
+
+        // Calculate balance per child (same logic as child dashboard)
+        const balanceByChild: Record<string, number> = {}
+        childIds.forEach(id => { balanceByChild[id] = 0 })
+
+        // Earned points from approved tasks
+        approvedTasks.data?.forEach(t => {
+          const childId = t.child_id
+          const taskData = t.tasks as any
+          const points = Array.isArray(taskData) ? taskData[0]?.points || 0 : taskData?.points || 0
+          balanceByChild[childId] = (balanceByChild[childId] || 0) + points
+        })
+
+        // Spent points from settled rewards
+        settledRewards.data?.forEach(r => {
+          const childId = r.child_id
+          const rewardData = r.rewards as any
+          const cost = Array.isArray(rewardData) ? rewardData[0]?.cost_points || 0 : rewardData?.cost_points || 0
+          balanceByChild[childId] = (balanceByChild[childId] || 0) - cost
+        })
+
+        // Adjustments (bonus/malus)
+        adjustments.data?.forEach(a => {
+          const childId = a.child_id
+          const pts = a.type === 'bonus' ? a.points : -a.points
+          balanceByChild[childId] = (balanceByChild[childId] || 0) + pts
+        })
+
+        // Also calculate stats for the last month (for completed/missed counts)
         const oneMonthAgo = new Date()
         oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1)
 
@@ -49,11 +103,15 @@ export default function ParentDashboardPage() {
 
           const completed = instances?.filter(i => i.status === 'approved').length || 0
           const missed = instances?.filter(i => i.status === 'rejected' || (i.status === 'pending' && new Date(i.date) < new Date())).length || 0
-          const points = instances
-            ?.filter(i => i.status === 'approved')
-            .reduce((sum, i) => sum + (i.tasks?.points || 0), 0) || 0
 
-          setStats(prev => ({ ...prev, [child.id]: { completed, missed, points } }))
+          setStats(prev => ({ 
+            ...prev, 
+            [child.id]: { 
+              completed, 
+              missed, 
+              points: balanceByChild[child.id] || 0 
+            } 
+          }))
         }
 
         // Fetch pending approvals (validated by child, waiting for parent)
