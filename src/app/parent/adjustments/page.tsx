@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Minus, MessageSquare, User, ArrowLeft, TrendingUp, TrendingDown } from 'lucide-react'
+import { Plus, Minus, MessageSquare, User, ArrowLeft, TrendingUp, TrendingDown, CheckCircle, Gift, Clock } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -12,13 +12,13 @@ import { getSupabase } from '@/lib/supabase/client'
 import { useToast } from '@/components/ui/Toast'
 import { formatDateTime } from '@/utils/helpers'
 import Link from 'next/link'
-import { Child, PointsAdjustment, AdjustmentType } from '@/types/database'
+import { Child, PointsAdjustment, AdjustmentType, TaskInstance, Task, RewardUnlock, Reward } from '@/types/database'
 
 export default function ParentAdjustmentsPage() {
   const { session } = useAuth()
   const { addToast } = useToast()
   const [children, setChildren] = useState<Child[]>([])
-  const [adjustments, setAdjustments] = useState<(PointsAdjustment & { child: Child })[]>([])
+  const [movements, setMovements] = useState<any[]>([])
   const [loading, setLoading] = useState(true)
   const [showModal, setShowModal] = useState(false)
   const [editingChildId, setEditingChildId] = useState<string | null>(null)
@@ -44,23 +44,94 @@ export default function ParentAdjustmentsPage() {
 
       const childIds = childrenData?.map(c => c.id) || []
       if (childIds.length > 0) {
-        const { data: adjData } = await supabase
-          .from('points_adjustments')
-          .select(`
-            *,
-            children (id, name)
-          `)
-          .in('child_id', childIds)
-          .order('created_at', { ascending: false })
-          .limit(50)
+        // Fetch all three types of movements
+        const [adjData, approvedTasks, settledRewards] = await Promise.all([
+          supabase
+            .from('points_adjustments')
+            .select(`
+              *,
+              children (id, name)
+            `)
+            .in('child_id', childIds)
+            .order('created_at', { ascending: false })
+            .limit(50),
+          supabase
+            .from('task_instances')
+            .select(`
+              *,
+              tasks!inner (name, points),
+              children (id, name)
+            `)
+            .in('child_id', childIds)
+            .eq('status', 'approved')
+            .order('approved_by_parent_at', { ascending: false })
+            .limit(50),
+          supabase
+            .from('reward_unlocks')
+            .select(`
+              *,
+              rewards!inner (name, cost_points),
+              children (id, name)
+            `)
+            .in('child_id', childIds)
+            .not('settled_at', 'is', null)
+            .order('settled_at', { ascending: false })
+            .limit(50),
+        ])
 
-        if (adjData) {
-          const formatted = adjData.map(a => ({
-            ...a,
+        // Combine all movements into a unified history
+        const allMovements: any[] = []
+
+        // Adjustments (bonus/malus)
+        adjData.data?.forEach(a => {
+          allMovements.push({
+            id: a.id,
+            type: a.type === 'bonus' ? 'bonus' : 'malus',
+            child_id: a.child_id,
             child: a.children,
-          }))
-          setAdjustments(formatted)
-        }
+            points: a.type === 'bonus' ? a.points : -a.points,
+            label: a.type === 'bonus' ? 'Bonus' : 'Malus',
+            detail: a.comment,
+            date: a.created_at,
+            source: 'adjustment',
+          })
+        })
+
+        // Approved tasks
+        approvedTasks.data?.forEach(t => {
+          allMovements.push({
+            id: t.id,
+            type: 'task_approved',
+            child_id: t.child_id,
+            child: t.children,
+            points: (t.tasks as any)?.[0]?.points || 0,
+            label: (t.tasks as any)?.[0]?.name || 'Tâche',
+            detail: `Tâche approuvée`,
+            date: t.approved_by_parent_at || t.created_at,
+            source: 'task',
+          })
+        })
+
+        // Settled rewards
+        settledRewards.data?.forEach(r => {
+          allMovements.push({
+            id: r.id,
+            type: 'reward_spent',
+            child_id: r.child_id,
+            child: r.children,
+            points: -((r.rewards as any)?.[0]?.cost_points || 0),
+            label: (r.rewards as any)?.[0]?.name || 'Récompense',
+            detail: `Récompense soldée`,
+            date: r.settled_at || r.created_at,
+            source: 'reward',
+          })
+        })
+
+        // Sort by date descending (most recent first)
+        allMovements.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+
+        // Limit to 50 most recent
+        setMovements(allMovements.slice(0, 50))
       }
       setLoading(false)
     }
@@ -115,7 +186,71 @@ export default function ParentAdjustmentsPage() {
         .order('created_at', { ascending: false })
         .limit(50)
       if (adjData) {
-        setAdjustments(adjData.map(a => ({ ...a, child: a.children })))
+        const formatted = adjData.map(a => ({
+          id: a.id,
+          type: a.type === 'bonus' ? 'bonus' : 'malus',
+          child_id: a.child_id,
+          child: a.children,
+          points: a.type === 'bonus' ? a.points : -a.points,
+          label: a.type === 'bonus' ? 'Bonus' : 'Malus',
+          detail: a.comment,
+          date: a.created_at,
+          source: 'adjustment',
+        }))
+        // Re-fetch all movements
+        const { data: tasksData } = await supabase
+          .from('task_instances')
+          .select(`
+            *,
+            tasks!inner (name, points),
+            children (id, name)
+          `)
+          .in('child_id', children.map(c => c.id))
+          .eq('status', 'approved')
+          .order('approved_by_parent_at', { ascending: false })
+          .limit(50)
+
+        const { data: rewardsData } = await supabase
+          .from('reward_unlocks')
+          .select(`
+            *,
+            rewards!inner (name, cost_points),
+            children (id, name)
+          `)
+          .in('child_id', children.map(c => c.id))
+          .not('settled_at', 'is', null)
+          .order('settled_at', { ascending: false })
+          .limit(50)
+
+        const allMovements = [...formatted]
+        tasksData?.forEach(t => {
+          allMovements.push({
+            id: t.id,
+            type: 'task_approved',
+            child_id: t.child_id,
+            child: t.children,
+            points: (t.tasks as any)?.[0]?.points || 0,
+            label: (t.tasks as any)?.[0]?.name || 'Tâche',
+            detail: `Tâche approuvée`,
+            date: t.approved_by_parent_at || t.created_at,
+            source: 'task',
+          })
+        })
+        rewardsData?.forEach(r => {
+          allMovements.push({
+            id: r.id,
+            type: 'reward_spent',
+            child_id: r.child_id,
+            child: r.children,
+            points: -((r.rewards as any)?.[0]?.cost_points || 0),
+            label: (r.rewards as any)?.[0]?.name || 'Récompense',
+            detail: `Récompense soldée`,
+            date: r.settled_at || r.created_at,
+            source: 'reward',
+          })
+        })
+        allMovements.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+        setMovements(allMovements.slice(0, 50))
       }
     } else {
       addToast({ type: 'error', title: 'Erreur', message: error.message })
@@ -132,10 +267,10 @@ export default function ParentAdjustmentsPage() {
     )
   }
 
-  const bonusTotal = adjustments
+  const bonusTotal = movements
     .filter(a => a.type === 'bonus')
     .reduce((sum, a) => sum + a.points, 0)
-  const malusTotal = adjustments
+  const malusTotal = movements
     .filter(a => a.type === 'malus')
     .reduce((sum, a) => sum + a.points, 0)
 
@@ -209,8 +344,10 @@ export default function ParentAdjustmentsPage() {
                     <span className="font-medium text-gray-900">{child.name}</span>
                   </div>
                   <div className="flex items-center gap-4 text-sm">
-                    <Badge variant="success">+{adjustments.filter(a => a.child_id === child.id && a.type === 'bonus').reduce((s, a) => s + a.points, 0)}</Badge>
-                    <Badge variant="danger">-{adjustments.filter(a => a.child_id === child.id && a.type === 'malus').reduce((s, a) => s + a.points, 0)}</Badge>
+                    <Badge variant="success">+{movements.filter((a: any) => a.child_id === child.id && a.type === 'task_approved').reduce((s: number, a: any) => s + a.points, 0)}</Badge>
+                    <Badge variant="success">+{movements.filter((a: any) => a.child_id === child.id && a.type === 'bonus').reduce((s: number, a: any) => s + a.points, 0)}</Badge>
+                    <Badge variant="danger">-{movements.filter((a: any) => a.child_id === child.id && a.type === 'malus').reduce((s: number, a: any) => s + a.points, 0)}</Badge>
+                    <Badge variant="info">-{Math.abs(movements.filter((a: any) => a.child_id === child.id && a.type === 'reward_spent').reduce((s: number, a: any) => s + a.points, 0))}</Badge>
                   </div>
                   <p className="text-xs text-gray-500"><Plus className="w-3 h-3 mr-1 inline" /> Ajuster</p>
                 </Button>
@@ -224,15 +361,15 @@ export default function ParentAdjustmentsPage() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <MessageSquare className="w-5 h-5" />
-            Historique des ajustements
+            Historique des mouvements
           </CardTitle>
         </CardHeader>
         <CardContent className="p-0">
-          {adjustments.length === 0 ? (
+          {movements.length === 0 ? (
             <div className="p-12 text-center">
               <MessageSquare className="w-12 h-12 text-gray-300 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun ajustement</h3>
-              <p className="text-gray-600">Les bonus/malus apparaîtront ici</p>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">Aucun mouvement</h3>
+              <p className="text-gray-600">Les tâches validées, récompenses et ajustements apparaîtront ici</p>
             </div>
           ) : (
             <div className="overflow-x-auto">
@@ -241,46 +378,59 @@ export default function ParentAdjustmentsPage() {
                   <tr className="bg-gray-50 border-b border-gray-200">
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Enfant</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Points</th>
+                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Points</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Commentaire</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-gray-200">
-                  {adjustments.map((adj) => (
-                    <tr key={adj.id} className="hover:bg-gray-50">
-                      <td className="px-6 py-4">
-                        <div className="flex items-center gap-2">
-                          <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 text-sm font-medium">
-                            {adj.child?.name?.charAt(0).toUpperCase() || '?'}
+                  {movements.map((adj: any) => {
+                    const isCredit = adj.points > 0
+                    const getBadge = () => {
+                      switch (adj.type) {
+                        case 'bonus':
+                          return <Badge variant="success"><TrendingUp className="w-3 h-3 mr-1 inline" /> Bonus</Badge>
+                        case 'malus':
+                          return <Badge variant="danger"><TrendingDown className="w-3 h-3 mr-1 inline" /> Malus</Badge>
+                        case 'task_approved':
+                          return <Badge variant="success"><CheckCircle className="w-3 h-3 mr-1 inline" /> Tâche validée</Badge>
+                        case 'reward_spent':
+                          return <Badge variant="info"><Gift className="w-3 h-3 mr-1 inline" /> Récompense</Badge>
+                        default:
+                          return <Badge variant="default">{adj.type}</Badge>
+                      }
+                    }
+                    return (
+                      <tr key={adj.id} className="hover:bg-gray-50">
+                        <td className="px-6 py-4">
+                          <div className="flex items-center gap-2">
+                            <div className="w-8 h-8 rounded-full bg-primary-100 flex items-center justify-center text-primary-600 text-sm font-medium">
+                              {adj.child?.name?.charAt(0).toUpperCase() || '?'}
+                            </div>
+                            <span className="text-sm text-gray-700">{adj.child?.name || 'Inconnu'}</span>
                           </div>
-                          <span className="text-sm text-gray-700">{adj.child?.name || 'Inconnu'}</span>
-                        </div>
-                      </td>
-                      <td className="px-6 py-4">
-                        <Badge variant={adj.type === 'bonus' ? 'success' : 'danger'}>
-                          {adj.type === 'bonus' ? (
-                            <><TrendingUp className="w-3 h-3 mr-1 inline" /> Bonus</>
-                          ) : (
-                            <><TrendingDown className="w-3 h-3 mr-1 inline" /> Malus</>
-                          )}
-                        </Badge>
-                      </td>
-                      <td className="px-6 py-4">
-                        <span className={`font-medium ${adj.type === 'bonus' ? 'text-green-600' : 'text-red-600'}`}>
-                          {adj.type === 'bonus' ? '+' : '-'}{adj.points} pts
-                        </span>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="text-sm text-gray-600 max-w-xs truncate">
-                          {adj.comment || '<span className="text-gray-400 italic">Aucun commentaire</span>'}
-                        </p>
-                      </td>
-                      <td className="px-6 py-4">
-                        <p className="text-sm text-gray-600">{formatDateTime(adj.created_at)}</p>
-                      </td>
-                    </tr>
-                  ))}
+                        </td>
+                        <td className="px-6 py-4">{getBadge()}</td>
+                        <td className="px-6 py-4">
+                          <p className="font-medium text-gray-900">{adj.label}</p>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <span className={`font-medium ${isCredit ? 'text-green-600' : 'text-red-600'}`}>
+                            {isCredit ? '+' : ''}{adj.points} pts
+                          </span>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="text-sm text-gray-600 max-w-xs truncate">
+                            {adj.detail || '<span className="text-gray-400 italic">Aucun commentaire</span>'}
+                          </p>
+                        </td>
+                        <td className="px-6 py-4">
+                          <p className="text-sm text-gray-600">{formatDateTime(adj.date)}</p>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>
