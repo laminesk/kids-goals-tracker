@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Plus, Trash2, Edit, Shield, Star, Award, Clock, Calendar, X, Check, ChevronDown, ChevronUp } from 'lucide-react'
+import { Plus, Trash2, Edit, Shield, Star, Award, Clock, Calendar, X, Check, ChevronDown, ChevronUp, Gem, Package } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -179,9 +179,11 @@ export default function ParentBadgesPage() {
     )
   }
 
-  const tierColors = {
+  const tierColors: Record<BadgeTier, { bg: string; text: string; border: string; badge: string }> = {
+    cardboard: { bg: 'bg-brown-100', text: 'text-brown-700', border: 'border-brown-300', badge: 'bg-brown-200 text-brown-800' },
     silver: { bg: 'bg-gray-100', text: 'text-gray-700', border: 'border-gray-300', badge: 'bg-gray-200 text-gray-800' },
     gold: { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-300', badge: 'bg-yellow-300 text-yellow-900' },
+    diamond: { bg: 'bg-cyan-100', text: 'text-cyan-700', border: 'border-cyan-300', badge: 'bg-cyan-200 text-cyan-800' },
   }
 
   const frequencyLabels: Record<BadgeFrequency, string> = {
@@ -239,6 +241,14 @@ export default function ParentBadgesPage() {
                               <>
                                 <Star className="w-3 h-3 mr-1" /> Or
                               </>
+                            ) : badge.tier === 'diamond' ? (
+                              <>
+                                <Gem className="w-3 h-3 mr-1" /> Diamant
+                              </>
+                            ) : badge.tier === 'cardboard' ? (
+                              <>
+                                <Package className="w-3 h-3 mr-1" /> Carton
+                              </>
                             ) : (
                               <>
                                 <Shield className="w-3 h-3 mr-1" /> Argent
@@ -291,8 +301,10 @@ export default function ParentBadgesPage() {
               value={formData.tier}
               onChange={(e) => setFormData({ ...formData, tier: e.target.value as BadgeTier })}
               options={[
+                { value: 'cardboard', label: '📦 Carton' },
                 { value: 'silver', label: '🥈 Argent' },
                 { value: 'gold', label: '🥇 Or' },
+                { value: 'diamond', label: '💎 Diamant' },
               ]}
               required
             />

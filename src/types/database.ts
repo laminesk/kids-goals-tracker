@@ -109,7 +109,7 @@ export interface PointsAdjustment {
   created_at: string
 }
 
-export type BadgeTier = 'silver' | 'gold'
+export type BadgeTier = 'cardboard' | 'silver' | 'gold' | 'diamond'
 export type BadgeFrequency = 'daily' | 'weekly' | 'monthly'
 
 export interface BadgeConfig {

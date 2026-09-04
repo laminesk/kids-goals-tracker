@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { ArrowLeft, Star, Shield, Award, Sparkles, Crown, TrendingUp, Check } from 'lucide-react'
+import { ArrowLeft, Star, Shield, Award, Sparkles, Crown, TrendingUp, Check, Gem, Package } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
 import { Button } from '@/components/ui/Button'
@@ -70,6 +70,8 @@ export default function ChildBadgesPage() {
   // Count by tier
   const goldCount = earnedBadges.filter(b => b.badge_config?.tier === 'gold').length
   const silverCount = earnedBadges.filter(b => b.badge_config?.tier === 'silver').length
+  const diamondCount = earnedBadges.filter(b => b.badge_config?.tier === 'diamond').length
+  const cardboardCount = earnedBadges.filter(b => b.badge_config?.tier === 'cardboard').length
 
   const getPokemonColor = (pokemonName: string) => {
     // Simple color mapping based on Pokemon name
@@ -89,7 +91,13 @@ export default function ChildBadgesPage() {
   }
 
   const getTierGradient = (tier: string) => {
-    return tier === 'gold' ? 'from-yellow-400 via-yellow-200 to-yellow-400' : 'from-gray-300 via-gray-100 to-gray-300'
+    switch (tier) {
+      case 'diamond': return 'from-cyan-400 via-cyan-200 to-cyan-400'
+      case 'gold': return 'from-yellow-400 via-yellow-200 to-yellow-400'
+      case 'silver': return 'from-gray-300 via-gray-100 to-gray-300'
+      case 'cardboard': return 'from-brown-400 via-brown-200 to-brown-400'
+      default: return 'from-gray-300 via-gray-100 to-gray-300'
+    }
   }
 
   return (
@@ -106,7 +114,7 @@ export default function ChildBadgesPage() {
       </div>
 
       {/* Stats Summary */}
-      <div className="grid grid-cols-2 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <Card className="border-2 border-yellow-300 bg-gradient-to-br from-yellow-50 to-yellow-100">
           <CardContent className="p-6 text-center">
             <Star className="w-10 h-10 text-yellow-500 mx-auto mb-2" />
@@ -114,11 +122,25 @@ export default function ChildBadgesPage() {
             <p className="text-3xl font-bold text-yellow-600">{goldCount}</p>
           </CardContent>
         </Card>
+        <Card className="border-2 border-cyan-300 bg-gradient-to-br from-cyan-50 to-cyan-100">
+          <CardContent className="p-6 text-center">
+            <Gem className="w-10 h-10 text-cyan-500 mx-auto mb-2" />
+            <p className="text-sm text-cyan-700">Badges Diamant</p>
+            <p className="text-3xl font-bold text-cyan-600">{diamondCount}</p>
+          </CardContent>
+        </Card>
         <Card className="border-2 border-gray-300 bg-gradient-to-br from-gray-50 to-gray-100">
           <CardContent className="p-6 text-center">
             <Shield className="w-10 h-10 text-gray-500 mx-auto mb-2" />
             <p className="text-sm text-gray-700">Badges Argent</p>
             <p className="text-3xl font-bold text-gray-600">{silverCount}</p>
+          </CardContent>
+        </Card>
+        <Card className="border-2 border-brown-300 bg-gradient-to-br from-brown-50 to-brown-100">
+          <CardContent className="p-6 text-center">
+            <Package className="w-10 h-10 text-brown-500 mx-auto mb-2" />
+            <p className="text-sm text-brown-700">Badges Carton</p>
+            <p className="text-3xl font-bold text-brown-600">{cardboardCount}</p>
           </CardContent>
         </Card>
       </div>
@@ -185,13 +207,22 @@ export default function ChildBadgesPage() {
                     
                     <CardContent className="p-4 relative">
                       <div className="flex items-start justify-between mb-3">
-                        <Badge variant="outline" className={badge.tier === 'gold' ? 'bg-yellow-100 border-yellow-300 text-yellow-700 flex items-center gap-1' : 'bg-gray-100 border-gray-300 text-gray-700 flex items-center gap-1'}>
-                          {badge.tier === 'gold' ? (
-                            <> <Star className="w-3 h-3" /> Or </>
-                          ) : (
-                            <> <Shield className="w-3 h-3" /> Argent </>
-                          )}
-                        </Badge>
+                        <Badge variant="outline" className={
+          badge.tier === 'gold' ? 'bg-yellow-100 border-yellow-300 text-yellow-700 flex items-center gap-1' :
+          badge.tier === 'diamond' ? 'bg-cyan-100 border-cyan-300 text-cyan-700 flex items-center gap-1' :
+          badge.tier === 'cardboard' ? 'bg-brown-100 border-brown-300 text-brown-700 flex items-center gap-1' :
+          'bg-gray-100 border-gray-300 text-gray-700 flex items-center gap-1'
+        }>
+          {badge.tier === 'gold' ? (
+            <> <Star className="w-3 h-3" /> Or </>
+          ) : badge.tier === 'diamond' ? (
+            <> <Gem className="w-3 h-3" /> Diamant </>
+          ) : badge.tier === 'cardboard' ? (
+            <> <Package className="w-3 h-3" /> Carton </>
+          ) : (
+            <> <Shield className="w-3 h-3" /> Argent </>
+          )}
+        </Badge>
                         <span className="text-xs text-gray-400">{earnedDate}</span>
                       </div>
 
@@ -249,20 +280,32 @@ export default function ChildBadgesPage() {
                   <Card
                     key={badge.id}
                     className={`relative overflow-hidden border-2 transition-all hover:shadow-lg opacity-75 ${
-                      badge.tier === 'gold' ? 'border-yellow-300' : 'border-gray-300'
+                      badge.tier === 'gold' ? 'border-yellow-300' :
+                      badge.tier === 'diamond' ? 'border-cyan-300' :
+                      badge.tier === 'cardboard' ? 'border-brown-300' :
+                      'border-gray-300'
                     } ${isEarned ? 'ring-2 ring-green-400' : ''}`}
                   >
                     <div className={`absolute inset-0 bg-gradient-to-br ${gradient} opacity-10`} />
                     
                     <CardContent className="p-4 relative">
                       <div className="flex items-start justify-between mb-3">
-                        <Badge variant="outline" className={badge.tier === 'gold' ? 'bg-yellow-100 border-yellow-300 text-yellow-700 flex items-center gap-1' : 'bg-gray-100 border-gray-300 text-gray-700 flex items-center gap-1'}>
-                          {badge.tier === 'gold' ? (
-                            <> <Star className="w-3 h-3" /> Or </>
-                          ) : (
-                            <> <Shield className="w-3 h-3" /> Argent </>
-                          )}
-                        </Badge>
+                        <Badge variant="outline" className={
+          badge.tier === 'gold' ? 'bg-yellow-100 border-yellow-300 text-yellow-700 flex items-center gap-1' :
+          badge.tier === 'diamond' ? 'bg-cyan-100 border-cyan-300 text-cyan-700 flex items-center gap-1' :
+          badge.tier === 'cardboard' ? 'bg-brown-100 border-brown-300 text-brown-700 flex items-center gap-1' :
+          'bg-gray-100 border-gray-300 text-gray-700 flex items-center gap-1'
+        }>
+          {badge.tier === 'gold' ? (
+            <> <Star className="w-3 h-3" /> Or </>
+          ) : badge.tier === 'diamond' ? (
+            <> <Gem className="w-3 h-3" /> Diamant </>
+          ) : badge.tier === 'cardboard' ? (
+            <> <Package className="w-3 h-3" /> Carton </>
+          ) : (
+            <> <Shield className="w-3 h-3" /> Argent </>
+          )}
+        </Badge>
                         {isEarned && (
                           <Badge variant="success" className="ml-auto">
                             <Check className="w-3 h-3 mr-1" /> Obtenu
