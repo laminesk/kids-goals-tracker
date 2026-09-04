@@ -711,6 +711,87 @@ export default function ParentSettingsPage() {
           </div>
         </form>
       </Modal>
+
+      <Modal
+        isOpen={showAddParentModal}
+        onClose={() => { setShowAddParentModal(false); setAddParentForm({ name: '', email: '', password: '', confirmPassword: '' }); setAddParentErrors({}); }}
+        title="Ajouter un parent"
+        size="md"
+      >
+        <form onSubmit={handleAddParent} className="space-y-4">
+          <Input
+            label="Prénom *"
+            value={addParentForm.name}
+            onChange={(e) => setAddParentForm({ ...addParentForm, name: e.target.value })}
+            error={addParentErrors.name}
+            placeholder="Ex: Marie"
+            autoComplete="given-name"
+            disabled={saving}
+          />
+
+          <Input
+            label="Email *"
+            type="email"
+            value={addParentForm.email}
+            onChange={(e) => setAddParentForm({ ...addParentForm, email: e.target.value })}
+            error={addParentErrors.email}
+            placeholder="exemple@email.com"
+            autoComplete="email"
+            disabled={saving}
+          />
+
+          <div className="relative">
+            <Input
+              label="Mot de passe *"
+              type={showAddParentPassword ? 'text' : 'password'}
+              value={addParentForm.password}
+              onChange={(e) => setAddParentForm({ ...addParentForm, password: e.target.value })}
+              error={addParentErrors.password}
+              placeholder="Minimum 8 caractères"
+              autoComplete="new-password"
+              disabled={saving}
+            />
+            <button
+              type="button"
+              onClick={() => setShowAddParentPassword(!showAddParentPassword)}
+              className="absolute right-3 top-[38px] text-gray-400 hover:text-gray-600"
+            >
+              {showAddParentPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+            </button>
+          </div>
+
+          <Input
+            label="Confirmer le mot de passe *"
+            type={showAddParentPassword ? 'text' : 'password'}
+            value={addParentForm.confirmPassword}
+            onChange={(e) => setAddParentForm({ ...addParentForm, confirmPassword: e.target.value })}
+            error={addParentErrors.confirmPassword}
+            placeholder="••••••••"
+            autoComplete="new-password"
+            disabled={saving}
+          />
+
+          <div className="flex justify-end gap-3 pt-4 border-t border-gray-200">
+            <Button type="button" variant="outline" onClick={() => setShowAddParentModal(false)}>
+              Annuler
+            </Button>
+            <Button type="submit" loading={saving}>
+              <UserPlus className="w-4 h-4 mr-2" />
+              Ajouter
+            </Button>
+          </div>
+        </form>
+      </Modal>
+
+      <ConfirmModal
+        isOpen={!!showDeleteParentConfirm}
+        onClose={() => setShowDeleteParentConfirm(null)}
+        onConfirm={() => showDeleteParentConfirm && handleDeleteParent(showDeleteParentConfirm)}
+        title="Supprimer le parent"
+        message="Cette action est irréversible. Le parent ne pourra plus accéder à l'application."
+        confirmText="Supprimer"
+        variant="danger"
+      />
     </div>
   )
 }
