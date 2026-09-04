@@ -44,7 +44,7 @@ export default function ParentAdjustmentsPage() {
 
       const childIds = childrenData?.map(c => c.id) || []
       if (childIds.length > 0) {
-        // Fetch all three types of movements
+        // Fetch ALL movements for balance calculation (no limit)
         const [adjData, approvedTasks, settledRewards] = await Promise.all([
           supabase
             .from('points_adjustments')
@@ -53,8 +53,7 @@ export default function ParentAdjustmentsPage() {
               children (id, name)
             `)
             .in('child_id', childIds)
-            .order('created_at', { ascending: false })
-            .limit(50),
+            .order('created_at', { ascending: true }),
           supabase
             .from('task_instances')
             .select(`
@@ -64,8 +63,7 @@ export default function ParentAdjustmentsPage() {
             `)
             .in('child_id', childIds)
             .eq('status', 'approved')
-            .order('approved_by_parent_at', { ascending: false })
-            .limit(50),
+            .order('approved_by_parent_at', { ascending: true }),
           supabase
             .from('reward_unlocks')
             .select(`
@@ -75,8 +73,7 @@ export default function ParentAdjustmentsPage() {
             `)
             .in('child_id', childIds)
             .not('settled_at', 'is', null)
-            .order('settled_at', { ascending: false })
-            .limit(50),
+            .order('settled_at', { ascending: true }),
         ])
 
         // Combine all movements into a unified history
@@ -127,10 +124,22 @@ export default function ParentAdjustmentsPage() {
           })
         })
 
-        // Sort by date descending (most recent first)
+        // Sort by date ASCENDING (oldest first) for running balance calculation
+        allMovements.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
+        // Calculate running balance per child
+        const balanceByChild: Record<string, number> = {}
+        childIds.forEach(id => { balanceByChild[id] = 0 })
+
+        allMovements.forEach(m => {
+          balanceByChild[m.child_id] = (balanceByChild[m.child_id] || 0) + m.points
+          m.balance = balanceByChild[m.child_id]
+        })
+
+        // Sort by date DESCENDING (most recent first) for display
         allMovements.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
 
-        // Limit to 50 most recent
+        // Limit to 50 most recent for display
         setMovements(allMovements.slice(0, 50))
       }
       setLoading(false)
@@ -380,6 +389,7 @@ export default function ParentAdjustmentsPage() {
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Type</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
                     <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Points</th>
+                    <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Solde</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Commentaire</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Date</th>
                   </tr>
@@ -419,6 +429,9 @@ export default function ParentAdjustmentsPage() {
                           <span className={`font-medium ${isCredit ? 'text-green-600' : 'text-red-600'}`}>
                             {isCredit ? '+' : ''}{adj.points} pts
                           </span>
+                        </td>
+                        <td className="px-6 py-4 text-right">
+                          <span className="font-mono font-semibold text-gray-900">{adj.balance} pts</span>
                         </td>
                         <td className="px-6 py-4">
                           <p className="text-sm text-gray-600 max-w-xs truncate">
