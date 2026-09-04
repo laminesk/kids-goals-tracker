@@ -43,16 +43,6 @@ async function getPointsEarned(childId: string, start: Date, end: Date) {
     .gte('approved_by_parent_at', start.toISOString())
     .lte('approved_by_parent_at', end.toISOString())
 
-  const { data: rewards } = await supabase
-    .from('reward_unlocks')
-    .select(`
-      rewards!inner (cost_points)
-    `)
-    .eq('child_id', childId)
-    .not('settled_at', 'is', null)
-    .gte('settled_at', start.toISOString())
-    .lte('settled_at', end.toISOString())
-
   const { data: adjustments } = await supabase
     .from('points_adjustments')
     .select('type, points')
@@ -61,10 +51,10 @@ async function getPointsEarned(childId: string, start: Date, end: Date) {
     .lte('created_at', end.toISOString())
 
   const taskPoints = tasks?.reduce((sum, t) => sum + ((t.tasks as any)?.[0]?.points || 0), 0) || 0
-  const rewardPoints = rewards?.reduce((sum, r) => sum + ((r.rewards as any)?.[0]?.cost_points || 0), 0) || 0
   const adjustmentPoints = adjustments?.reduce((sum, a) => sum + (a.type === 'bonus' ? a.points : -a.points), 0) || 0
 
-  return taskPoints - rewardPoints + adjustmentPoints
+  // Return GROSS points earned (tasks + bonuses - maluses), IGNORING rewards spent
+  return taskPoints + adjustmentPoints
 }
 
 // Check if badge already earned for this period
