@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { Target, Gift, Clock, CheckCircle, XCircle, AlertCircle, Trophy, Star, MessageSquare } from 'lucide-react'
+import { Target, Gift, Clock, CheckCircle, XCircle, AlertCircle, Trophy, Star, MessageSquare, Award } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Badge } from '@/components/ui/Badge'
@@ -26,6 +26,7 @@ export default function ChildDashboardPage() {
   const [rewards, setRewards] = useState<(Reward & { unlocked: boolean })[]>([])
   const [pendingTasks, setPendingTasks] = useState<TaskInstance[]>([])
   const [pointsBalance, setPointsBalance] = useState(0)
+  const [grossPointsEarned, setGrossPointsEarned] = useState(0)
   const [loading, setLoading] = useState(true)
   const [validatingTaskId, setValidatingTaskId] = useState<string | null>(null)
   const [unlockingRewardId, setUnlockingRewardId] = useState<string | null>(null)
@@ -113,7 +114,7 @@ export default function ChildDashboardPage() {
 
       if (pendingRes.data) setPendingTasks(pendingRes.data)
 
-      // Calculate points balance from approved tasks
+      // Calculate points balance from approved tasks (NET balance = earned - spent)
       const { data: approvedTasks } = await supabase
         .from('task_instances')
         .select(`
@@ -145,7 +146,14 @@ export default function ChildDashboardPage() {
         return sum + (a.type === 'bonus' ? a.points : -a.points)
       }, 0) || 0
 
-      setPointsBalance(earnedPoints - spentPoints + adjustmentPoints)
+      // NET balance (what child can spend)
+      const netBalance = earnedPoints - spentPoints + adjustmentPoints
+
+      // GROSS points earned (for badges) = earned + adjustments, IGNORING rewards spent
+      const grossPointsEarned = earnedPoints + adjustmentPoints
+
+      setPointsBalance(netBalance)
+      setGrossPointsEarned(grossPointsEarned)
       setLoading(false)
     }
 
@@ -290,6 +298,21 @@ export default function ChildDashboardPage() {
             </div>
             <div className="w-20 h-20 rounded-2xl bg-white/20 flex items-center justify-center">
               <Trophy className="w-10 h-10" />
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Gross points earned for badges */}
+      <Card className="bg-gradient-to-r from-amber-500 to-amber-600 text-white mt-2">
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-amber-100 text-sm">Points pour badges</p>
+              <p className="text-2xl font-bold">{grossPointsEarned} <span className="text-lg">PTS</span></p>
+            </div>
+            <div className="w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center">
+              <Award className="w-8 h-8" />
             </div>
           </div>
         </CardContent>
