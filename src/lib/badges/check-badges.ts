@@ -9,6 +9,19 @@ function getDayBounds(date: Date) {
   return { start, end }
 }
 
+// Helper to get start of month and end of month
+function getMonthBounds(date: Date) {
+  const start = new Date(date)
+  start.setUTCDate(1)
+  start.setUTCHours(0, 0, 0, 0)
+  
+  const end = new Date(start)
+  end.setUTCMonth(start.getUTCMonth() + 1)
+  end.setUTCDate(0) // Last day of month
+  end.setUTCHours(23, 59, 59, 999)
+  return { start, end }
+}
+
 // Helper to get start of week (Monday) and end of week (Saturday)
 function getWeekBounds(date: Date) {
   const day = date.getUTCDay() // 0 = Sunday, 1 = Monday, etc.
@@ -190,4 +203,54 @@ export async function checkAndAwardWeeklyBadges() {
     }
   }
   console.log('✅ Weekly badge check complete')
+}
+
+export async function checkAndAwardMonthlyBadges() {
+  console.log('🔍 Checking monthly badges...')
+  const now = new Date()
+  const { start, end } = getMonthBounds(now)
+  
+  // Only run on the 1st day of the month (or last day)
+  // We check on the 1st day of the new month for the previous month
+  const day = now.getUTCDate()
+  if (day !== 1) {
+    console.log('Not monthly check day (1st of month only)')
+    return
+  }
+  
+  const supabase = await getSupabase()
+  
+  const { data: configs } = await supabase
+    .from('badge_configs')
+    .select('*')
+    .eq('is_active', true)
+    .eq('frequency', 'monthly')
+  
+  if (!configs || configs.length === 0) {
+    console.log('No monthly badge configs found')
+    return
+  }
+  
+  const { data: children } = await supabase
+    .from('children')
+    .select('id')
+  
+  if (!children) return
+  
+  for (const config of configs) {
+    for (const child of children) {
+      const alreadyEarned = await hasBadgeForPeriod(child.id, config.id, start, end)
+      if (alreadyEarned) continue
+      
+      const points = await getPointsEarned(child.id, start, end)
+      
+      if (points >= config.threshold_points) {
+        const success = await awardBadge(child.id, config.id, start, end, points)
+        if (success) {
+          console.log(`✅ Monthly badge "${config.name}" awarded to child ${child.id} (${points} pts)`)
+        }
+      }
+    }
+  }
+  console.log('✅ Monthly badge check complete')
 }

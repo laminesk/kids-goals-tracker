@@ -243,7 +243,7 @@ export default function ChildBadgesPage() {
                 const gradient = getTierGradient(badge.tier)
                 const pokemonGradient = getPokemonColor(badge.pokemon_name)
                 const isEarned = earnedBadges.some(e => e.badge_config_id === badge.id)
-                const frequencyLabel = badge.frequency === 'daily' ? '📅 Quotidien' : '📆 Hebdomadaire'
+                const frequencyLabel = badge.frequency === 'daily' ? '📅 Quotidien' : badge.frequency === 'weekly' ? '📆 Hebdomadaire' : '🗓️ Mensuel'
 
                 return (
                   <Card

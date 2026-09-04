@@ -110,7 +110,7 @@ export interface PointsAdjustment {
 }
 
 export type BadgeTier = 'silver' | 'gold'
-export type BadgeFrequency = 'daily' | 'weekly'
+export type BadgeFrequency = 'daily' | 'weekly' | 'monthly'
 
 export interface BadgeConfig {
   id: string

@@ -184,9 +184,10 @@ export default function ParentBadgesPage() {
     gold: { bg: 'bg-yellow-100', text: 'text-yellow-700', border: 'border-yellow-300', badge: 'bg-yellow-300 text-yellow-900' },
   }
 
-  const frequencyLabels = {
+  const frequencyLabels: Record<BadgeFrequency, string> = {
     daily: 'Quotidien',
     weekly: 'Hebdomadaire',
+    monthly: 'Mensuel',
   }
 
   return (
@@ -303,6 +304,7 @@ export default function ParentBadgesPage() {
               options={[
                 { value: 'daily', label: '📅 Quotidien' },
                 { value: 'weekly', label: '📆 Hebdomadaire' },
+                { value: 'monthly', label: '🗓️ Mensuel' },
               ]}
               required
             />

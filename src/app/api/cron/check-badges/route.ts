@@ -1,6 +1,6 @@
-export const dynamic = 'force-dynamic'
+import { checkAndAwardDailyBadges, checkAndAwardWeeklyBadges, checkAndAwardMonthlyBadges } from '@/lib/badges/check-badges'
 
-import { checkAndAwardDailyBadges, checkAndAwardWeeklyBadges } from '@/lib/badges/check-badges'
+export const dynamic = 'force-dynamic'
 
 export async function GET() {
   try {
@@ -14,6 +14,9 @@ export async function GET() {
     
     // Check weekly badges on Sunday/Monday
     await checkAndAwardWeeklyBadges()
+    
+    // Check monthly badges (1st of month)
+    await checkAndAwardMonthlyBadges()
     
     return Response.json({ success: true })
   } catch (error) {
