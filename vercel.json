@@ -2,5 +2,12 @@
   "buildCommand": "npm run build",
   "devCommand": "npm run dev",
   "installCommand": "npm install",
-  "framework": "nextjs"
+  "framework": "nextjs",
+  "crons": [
+    {
+      "path": "/api/cron/check-badges",
+      "schedule": "0 20 * * *",
+      "timezone": "Europe/Paris"
+    }
+  ]
 }
