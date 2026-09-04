@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
-import { Bell, LogOut, Target, Gift, Bell as BellIcon, Settings, ChevronDown, ChevronUp, Home, Star, Clock, MessageSquare } from 'lucide-react'
+import { Bell, LogOut, Target, Gift, Bell as BellIcon, Settings, ChevronDown, ChevronUp, Home, Star, Clock, MessageSquare, Award } from 'lucide-react'
 import { Button } from '@/components/ui/Button'
 import { Card, CardContent } from '@/components/ui/Card'
 import { Badge } from '@/components/ui/Badge'
@@ -218,6 +218,13 @@ export default function ChildLayout({ children }: { children: React.ReactNode })
             >
               <MessageSquare className="w-5 h-5" />
               <span>Historique du solde</span>
+            </Link>
+            <Link
+              href="/child/badges"
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg text-gray-600 hover:text-gray-900 hover:bg-gray-100 transition-colors"
+            >
+              <Award className="w-5 h-5" />
+              <span>Mes Badges</span>
             </Link>
             <Link
               href="/child/settings"

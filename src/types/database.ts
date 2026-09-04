@@ -107,3 +107,30 @@ export interface PointsAdjustment {
   comment: string | null
   created_at: string
 }
+
+export type BadgeTier = 'silver' | 'gold'
+export type BadgeFrequency = 'daily' | 'weekly'
+
+export interface BadgeConfig {
+  id: string
+  family_id: string
+  name: string
+  tier: BadgeTier
+  frequency: BadgeFrequency
+  threshold_points: number
+  pokemon_name: string
+  pokemon_image_url: string | null
+  is_active: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface BadgeEarned {
+  id: string
+  child_id: string
+  badge_config_id: string
+  earned_at: string
+  period_start: string
+  period_end: string
+  points_earned: number
+}
