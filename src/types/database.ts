@@ -15,6 +15,7 @@ export interface Parent {
   family_id: string
   email: string
   password_hash: string
+  name: string | null
   created_at: string
 }
 

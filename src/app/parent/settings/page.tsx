@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
-import { User, Lock, Shield, Trash2, Download, AlertTriangle, Save, Eye, EyeOff, X, Plus, UserPlus } from 'lucide-react'
+import { User, Lock, Shield, Trash2, Download, AlertTriangle, Save, Eye, EyeOff, X, Plus, UserPlus, UserCheck, Mail } from 'lucide-react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/Card'
 import { Button } from '@/components/ui/Button'
 import { Input } from '@/components/ui/Input'
@@ -38,22 +38,34 @@ export default function ParentSettingsPage() {
   const [showResetConfirm, setShowResetConfirm] = useState(false)
   const [showExportConfirm, setShowExportConfirm] = useState(false)
   const [showAddChildModal, setShowAddChildModal] = useState(false)
+  const [showAddParentModal, setShowAddParentModal] = useState(false)
+  const [showDeleteParentConfirm, setShowDeleteParentConfirm] = useState<string | null>(null)
   const [addChildForm, setAddChildForm] = useState({
     name: '',
     pin: '',
     confirmPin: '',
   })
+  const [addParentForm, setAddParentForm] = useState({
+    name: '',
+    email: '',
+    password: '',
+    confirmPassword: '',
+  })
   const [addChildErrors, setAddChildErrors] = useState<Record<string, string>>({})
+  const [addParentErrors, setAddParentErrors] = useState<Record<string, string>>({})
   const [showAddChildPassword, setShowAddChildPassword] = useState(false)
+  const [showAddParentPassword, setShowAddParentPassword] = useState(false)
+  const [parents, setParents] = useState<Parent[]>([])
 
   useEffect(() => {
     async function fetchData() {
       if (!session?.user) return
       const supabase = getSupabase()
 
-      const [childrenRes, parentRes, tasksRes, rewardsRes] = await Promise.all([
+      const [childrenRes, parentRes, parentsRes, tasksRes, rewardsRes] = await Promise.all([
         supabase.from('children').select('*').eq('family_id', session.user.family_id).order('created_at'),
         supabase.from('parents').select('*').eq('id', session.user.id).single(),
+        supabase.from('parents').select('*').eq('family_id', session.user.family_id).order('created_at'),
         supabase.from('tasks').select('id', { count: 'exact' }).eq('family_id', session.user.family_id).is('deleted_at', null),
         supabase.from('rewards').select('id', { count: 'exact' }).eq('family_id', session.user.family_id).is('deleted_at', null),
       ])
@@ -67,6 +79,7 @@ export default function ParentSettingsPage() {
         setChildPins(initialPins)
       }
       if (parentRes.data) setParent(parentRes.data)
+      if (parentsRes.data) setParents(parentsRes.data)
       setStats({
         tasksCount: tasksRes.count || 0,
         rewardsCount: rewardsRes.count || 0,
@@ -192,6 +205,81 @@ export default function ParentSettingsPage() {
     setSaving(false)
   }
 
+  const validateAddParentForm = () => {
+    const errors: Record<string, string> = {}
+    if (!addParentForm.name.trim()) errors.name = 'Prénom requis'
+    if (!addParentForm.email.trim()) errors.email = 'Email requis'
+    else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(addParentForm.email)) errors.email = 'Email invalide'
+    if (!addParentForm.password) errors.password = 'Mot de passe requis'
+    else if (addParentForm.password.length < 8) errors.password = 'Minimum 8 caractères'
+    if (addParentForm.password !== addParentForm.confirmPassword) errors.confirmPassword = 'Les mots de passe ne correspondent pas'
+    setAddParentErrors(errors)
+    return Object.keys(errors).length === 0
+  }
+
+  const handleAddParent = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!validateAddParentForm() || !session?.user) return
+
+    if (parents.length >= 2) {
+      addToast({ type: 'error', title: 'Erreur', message: 'Maximum 2 parents atteint' })
+      return
+    }
+
+    setSaving(true)
+    const supabase = getSupabase()
+
+    const passwordHash = await hashPassword(addParentForm.password)
+
+    const { error } = await supabase
+      .from('parents')
+      .insert({
+        family_id: session.user.family_id,
+        name: addParentForm.name.trim(),
+        email: addParentForm.email.trim().toLowerCase(),
+        password_hash: passwordHash,
+      })
+
+    if (!error) {
+      addToast({ type: 'success', title: `Parent ${addParentForm.name} ajouté` })
+      setAddParentForm({ name: '', email: '', password: '', confirmPassword: '' })
+      setShowAddParentModal(false)
+      // Refresh parents list
+      const { data } = await supabase.from('parents').select('*').eq('family_id', session.user.family_id).order('created_at')
+      if (data) setParents(data)
+    } else {
+      addToast({ type: 'error', title: 'Erreur', message: error.message })
+    }
+    setSaving(false)
+  }
+
+  const handleDeleteParent = async (parentId: string) => {
+    if (!session?.user) return
+
+    // Prevent deleting yourself
+    if (parentId === session.user.id) {
+      addToast({ type: 'error', title: 'Erreur', message: 'Impossible de vous supprimer vous-même' })
+      return
+    }
+
+    setSaving(true)
+    const supabase = getSupabase()
+
+    const { error } = await supabase
+      .from('parents')
+      .delete()
+      .eq('id', parentId)
+
+    if (!error) {
+      addToast({ type: 'success', title: 'Parent supprimé' })
+      setParents(prev => prev.filter(p => p.id !== parentId))
+    } else {
+      addToast({ type: 'error', title: 'Erreur', message: error.message })
+    }
+    setSaving(false)
+    setShowDeleteParentConfirm(null)
+  }
+
   const handleResetPoints = async () => {
     if (!session?.user) return
     const supabase = getSupabase()
@@ -311,6 +399,55 @@ export default function ParentSettingsPage() {
                   Enregistrer
                 </Button>
               </form>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <UserCheck className="w-5 h-5" />
+                Gestion des parents
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="flex items-center justify-between mb-4">
+                <span className="text-sm text-gray-500">2 parents max</span>
+                <Button onClick={() => setShowAddParentModal(true)} variant="outline" size="sm">
+                  <UserPlus className="w-4 h-4 mr-2" />
+                  Ajouter un parent
+                </Button>
+              </div>
+
+              {parents.length === 0 ? (
+                <p className="text-gray-500 text-center py-4">Aucun parent ajouté</p>
+              ) : (
+                <div className="space-y-4">
+                  {parents.map((parentItem) => (
+                    <div key={parentItem.id} className="border border-gray-200 rounded-lg p-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600 font-medium">
+                            {parentItem.name?.charAt(0).toUpperCase() || 'P'}
+                          </div>
+                          <div>
+                            <p className="font-medium text-gray-900">{parentItem.name || 'Parent'}</p>
+                            <p className="text-sm text-gray-500">{parentItem.email}</p>
+                          </div>
+                        </div>
+                        {parentItem.id !== session?.user?.id && (
+                          <Button variant="ghost" size="sm" className="text-red-600 hover:text-red-700" onClick={() => setShowDeleteParentConfirm(parentItem.id)}>
+                            <Trash2 className="w-4 h-4 mr-1" /> Supprimer
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {parents.length >= 2 && (
+                <p className="mt-3 text-sm text-gray-500 text-center">Maximum 2 parents atteint</p>
+              )}
             </CardContent>
           </Card>
 
