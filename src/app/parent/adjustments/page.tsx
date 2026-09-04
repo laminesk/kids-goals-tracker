@@ -96,13 +96,15 @@ export default function ParentAdjustmentsPage() {
 
         // Approved tasks
         approvedTasks.data?.forEach(t => {
+          const taskData = t.tasks as any
+          const points = Array.isArray(taskData) ? taskData[0]?.points || 0 : taskData?.points || 0
           allMovements.push({
             id: t.id,
             type: 'task_approved',
             child_id: t.child_id,
             child: t.children,
-            points: (t.tasks as any)?.[0]?.points || 0,
-            label: (t.tasks as any)?.[0]?.name || 'Tâche',
+            points: points,
+            label: Array.isArray(taskData) ? taskData[0]?.name || 'Tâche' : taskData?.name || 'Tâche',
             detail: `Tâche approuvée`,
             date: t.approved_by_parent_at || t.created_at,
             source: 'task',
@@ -111,13 +113,15 @@ export default function ParentAdjustmentsPage() {
 
         // Settled rewards
         settledRewards.data?.forEach(r => {
+          const rewardData = r.rewards as any
+          const cost = Array.isArray(rewardData) ? rewardData[0]?.cost_points || 0 : rewardData?.cost_points || 0
           allMovements.push({
             id: r.id,
             type: 'reward_spent',
             child_id: r.child_id,
             child: r.children,
-            points: -((r.rewards as any)?.[0]?.cost_points || 0),
-            label: (r.rewards as any)?.[0]?.name || 'Récompense',
+            points: -cost,
+            label: Array.isArray(rewardData) ? rewardData[0]?.name || 'Récompense' : rewardData?.name || 'Récompense',
             detail: `Récompense soldée`,
             date: r.settled_at || r.created_at,
             source: 'reward',
